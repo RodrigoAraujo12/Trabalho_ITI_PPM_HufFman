@@ -32,9 +32,18 @@ class PPMHuffman:
                 contexto = texto[i-k:i]
                 self.contexts[contexto][texto[i]] += 1
     
+    """"""""""
     def prever(self, contexto):
         if contexto in self.contexts:
             return self.contexts[contexto]
+        return None
+    """""""""
+    def prever(self, contexto):
+        for k in range(len(contexto), -1, -1):
+            subcontexto = contexto[-k:]
+            if subcontexto in self.contexts and self.contexts[subcontexto]:
+                total = sum(self.contexts[subcontexto].values())
+                return {char: freq / total for char, freq in self.contexts[subcontexto].items()}
         return None
 
 # Implementação da Codificação Huffman
@@ -94,6 +103,7 @@ class Huffman:
         return resultado
 
 # Função principal para compressão e descompressão
+"""""""""
 def comprimir(texto):
     ppm = PPMHuffman()
     ppm.treinar(texto)
@@ -101,6 +111,24 @@ def comprimir(texto):
     for char in texto:
         frequencias[char] += 1
     
+    huffman = Huffman()
+    huffman.construir_heap(frequencias)
+    huffman.construir_codigos()
+    return huffman.codificar(texto), huffman.codes
+"""""""""
+def comprimir(texto, max_context=4):
+    ppm = PPMHuffman(max_context)
+    ppm.treinar(texto)
+
+    frequencias = defaultdict(float)
+    for i in range(len(texto)):
+        contexto = texto[max(0, i - max_context):i]
+        probabilidades = ppm.prever(contexto)
+
+        if probabilidades:
+            for char, prob in probabilidades.items():
+                frequencias[char] += prob
+
     huffman = Huffman()
     huffman.construir_heap(frequencias)
     huffman.construir_codigos()

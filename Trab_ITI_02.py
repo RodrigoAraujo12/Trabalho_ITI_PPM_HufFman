@@ -1,9 +1,10 @@
 import re
 import heapq
+import time
+import math
 from collections import defaultdict
 
-# Função para limpar o texto
-def limpar_texto(caminho_arquivo, caminho_saida):
+def limpar_texto(caminho_arquivo):
     with open(caminho_arquivo, 'r', encoding='utf-8') as arquivo:
         texto = arquivo.read().lower()
     
@@ -14,13 +15,9 @@ def limpar_texto(caminho_arquivo, caminho_saida):
     texto = re.sub(r'ú|ù|û', 'u', texto)
     texto = re.sub(r'ç', 'c', texto)
     texto = re.sub(r'[^a-z ]', '', texto)
-    
-    with open(caminho_saida, 'w', encoding='utf-8') as arquivo_saida:
-        arquivo_saida.write(texto)
-    
+
     return texto
 
-# Implementação do PPM-Huffman
 class PPMHuffman:
     def __init__(self, max_context=4):
         self.max_context = max_context
@@ -32,12 +29,6 @@ class PPMHuffman:
                 contexto = texto[i-k:i]
                 self.contexts[contexto][texto[i]] += 1
     
-    """"""""""
-    def prever(self, contexto):
-        if contexto in self.contexts:
-            return self.contexts[contexto]
-        return None
-    """""""""
     def prever(self, contexto):
         for k in range(len(contexto), -1, -1):
             subcontexto = contexto[-k:]
@@ -46,7 +37,9 @@ class PPMHuffman:
                 return {char: freq / total for char, freq in self.contexts[subcontexto].items()}
         return None
 
-# Implementação da Codificação Huffman
+def calcular_entropia(probabilidades):
+    return sum(p * math.log2(1/p) for p in probabilidades.values()) if probabilidades else 0
+
 class NoHuffman:
     def __init__(self, char, freq):
         self.char = char
@@ -102,37 +95,27 @@ class Huffman:
                 buffer = ""
         return resultado
 
-# Função principal para compressão e descompressão
-"""""""""
-def comprimir(texto):
-    ppm = PPMHuffman()
+def comprimir(texto, max_context):
+    ppm = PPMHuffman(max_context)
     ppm.treinar(texto)
-    frequencias = defaultdict(int)
-    for char in texto:
-        frequencias[char] += 1
+    
+    frequencias = defaultdict(float)
+    entropia_total = 0
+    for i in range(len(texto)):
+        contexto = texto[max(0, i - max_context):i]
+        probabilidades = ppm.prever(contexto)
+        if probabilidades:
+            for char, prob in probabilidades.items():
+                frequencias[char] += prob
+            entropia_total += calcular_entropia(probabilidades)
     
     huffman = Huffman()
     huffman.construir_heap(frequencias)
     huffman.construir_codigos()
-    return huffman.codificar(texto), huffman.codes
-"""""""""
-def comprimir(texto, max_context=4):
-    ppm = PPMHuffman(max_context)
-    ppm.treinar(texto)
-
-    frequencias = defaultdict(float)
-    for i in range(len(texto)):
-        contexto = texto[max(0, i - max_context):i]
-        probabilidades = ppm.prever(contexto)
-
-        if probabilidades:
-            for char, prob in probabilidades.items():
-                frequencias[char] += prob
-
-    huffman = Huffman()
-    huffman.construir_heap(frequencias)
-    huffman.construir_codigos()
-    return huffman.codificar(texto), huffman.codes
+    
+    codificado = huffman.codificar(texto)
+    entropia_media = entropia_total / len(texto) if texto else 0
+    return codificado, huffman.codes, entropia_media
 
 def descomprimir(codigo, codigos):
     huffman = Huffman()
@@ -140,18 +123,31 @@ def descomprimir(codigo, codigos):
     huffman.reverse_mapping = {v: k for k, v in codigos.items()}
     return huffman.decodificar(codigo)
 
-# Exemplo de uso
-caminho_arquivo = "saida.txt"
-caminho_saida = "saida_tratada.txt"
-texto_limpo = limpar_texto(caminho_arquivo, caminho_saida)
-print("Texto limpo salvo em", caminho_saida)
+def avaliar_compressao(caminho_arquivo):
+    texto = limpar_texto(caminho_arquivo)
+    resultados = []
+    
+    for k in range(6):
+        inicio_comp = time.time()
+        texto_comprimido, codigos, entropia = comprimir(texto, k)
+        fim_comp = time.time()
+        
+        inicio_desc = time.time()
+        texto_descomprimido = descomprimir(texto_comprimido, codigos)
+        fim_desc = time.time()
+        
+        comprimento_medio = len(texto_comprimido) / len(texto) if len(texto) > 0 else 0
+        tempo_compressao = fim_comp - inicio_comp
+        tempo_descompressao = fim_desc - inicio_desc
+        
+        resultados.append((k, comprimento_medio, entropia, tempo_compressao, tempo_descompressao))
+    
+    print("| K | Comprimento Médio | Entropia | Tempo Compressão (s) | Tempo Descompressão (s) |")
+    print("|---|-------------------|----------|----------------------|-------------------------|")
+    for r in resultados:
+        print(f"| {r[0]} | {r[1]:.5f} | {r[2]:.5f} | {r[3]:.5f} | {r[4]:.5f} |")
 
-texto_comprimido, codigos = comprimir(texto_limpo)
-with open("comprimido.txt", "w", encoding="utf-8") as arquivo_comprimido:
-    arquivo_comprimido.write(texto_comprimido)
-print("Texto comprimido salvo em comprimido.txt")
 
-texto_descomprimido = descomprimir(texto_comprimido, codigos)
-with open("descomprimido.txt", "w", encoding="utf-8") as arquivo_descomprimido:
-    arquivo_descomprimido.write(texto_descomprimido)
-print("Texto descomprimido salvo em descomprimido.txt")
+# Executar a análise
+documento = "saida.txt"  # Substitua pelo nome real do arquivo
+avaliar_compressao(documento)

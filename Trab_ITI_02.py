@@ -19,7 +19,7 @@ def limpar_texto(caminho_arquivo):
     return texto
 
 class PPMHuffman:
-    def __init__(self, max_context=4):
+    def __init__(self, max_context=5):
         self.max_context = max_context
         self.contexts = defaultdict(lambda: defaultdict(int))
     

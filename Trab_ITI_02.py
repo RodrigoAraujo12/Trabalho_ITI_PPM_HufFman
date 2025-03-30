@@ -2,20 +2,40 @@ import re
 import heapq
 import time
 import math
+import unicodedata
 from collections import defaultdict
 
 def limpar_texto(caminho_arquivo):
     with open(caminho_arquivo, 'r', encoding='utf-8') as arquivo:
-        texto = arquivo.read().lower()
+        texto = arquivo.read()
     
-    texto = re.sub(r'á|à|â|ã', 'a', texto)
-    texto = re.sub(r'é|è|ê', 'e', texto)
-    texto = re.sub(r'í|ì|î', 'i', texto)
-    texto = re.sub(r'ó|ò|ô|õ', 'o', texto)
-    texto = re.sub(r'ú|ù|û', 'u', texto)
-    texto = re.sub(r'ç', 'c', texto)
-    texto = re.sub(r'[^a-z ]', '', texto)
-
+    correcoes = {
+        "Ã“": "Ó",
+        "Ã‰": "É",
+        "Ãƒ": "Ã",
+        "Ã€": "À",
+        "Ã‡": "Ç",
+        "Ã‚": "Â",
+        "Ãš": "Ú",
+        "ÃÃ\x8d": "Í"
+    }
+    
+    for errado, certo in correcoes.items():
+        texto = texto.replace(errado, certo)
+    
+    # Substituir quebras de linha por um marcador temporário antes do processamento
+    texto = texto.replace('\n', ' <QUEBRA> ')
+    
+    texto = texto.lower()
+    texto = ''.join(c for c in unicodedata.normalize('NFKD', texto) if not unicodedata.combining(c))
+    
+    # Modificar a expressão regular para manter o marcador de quebra
+    texto = re.sub(r'[^a-z <QUEBRA>]', '', texto)
+    texto = re.sub(r' +', ' ', texto).strip()
+    
+    # Restaurar as quebras de linha
+    texto = texto.replace('<quebra>', '\n')
+    
     return texto
 
 class PPMHuffman:
@@ -144,10 +164,18 @@ def avaliar_compressao(caminho_arquivo):
     
     print("| K | Comprimento Médio | Entropia | Tempo Compressão (s) | Tempo Descompressão (s) |")
     print("|---|-------------------|----------|----------------------|-------------------------|")
+    
+    with open("texto_tratado.txt", "w", encoding="utf-8") as f:
+        f.write(texto)
+    with open("texto_comprimido.txt", "w", encoding="utf-8") as f:
+        f.write(texto_comprimido)
+    with open("texto_descomprimido.txt", "w", encoding="utf-8") as f:
+        f.write(texto_descomprimido)
+    
     for r in resultados:
         print(f"| {r[0]} | {r[1]:.5f} | {r[2]:.5f} | {r[3]:.5f} | {r[4]:.5f} |")
 
 
 # Executar a análise
-documento = "saida.txt"  # Substitua pelo nome real do arquivo
+documento = "bras_cubas.txt"  # Substitua pelo nome real do arquivo
 avaliar_compressao(documento)

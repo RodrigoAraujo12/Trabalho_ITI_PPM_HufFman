@@ -17,23 +17,17 @@ def limpar_texto(caminho_arquivo):
         "Ã‡": "Ç",
         "Ã‚": "Â",
         "Ãš": "Ú",
-        "ÃÃ\x8d": "Í"
+        "ÃÃÃÃ\x8d": "Í"
     }
     
     for errado, certo in correcoes.items():
         texto = texto.replace(errado, certo)
     
-    # Substituir quebras de linha por um marcador temporário antes do processamento
     texto = texto.replace('\n', ' <QUEBRA> ')
-    
     texto = texto.lower()
     texto = ''.join(c for c in unicodedata.normalize('NFKD', texto) if not unicodedata.combining(c))
-    
-    # Modificar a expressão regular para manter o marcador de quebra
     texto = re.sub(r'[^a-z <QUEBRA>]', '', texto)
     texto = re.sub(r' +', ' ', texto).strip()
-    
-    # Restaurar as quebras de linha
     texto = texto.replace('<quebra>', '\n')
     
     return texto
@@ -55,7 +49,7 @@ class PPMHuffman:
             if subcontexto in self.contexts and self.contexts[subcontexto]:
                 total = sum(self.contexts[subcontexto].values())
                 return {char: freq / total for char, freq in self.contexts[subcontexto].items()}
-        return None
+        return {char: 1 / len(self.contexts) for char in self.contexts} if self.contexts else {}
 
 def calcular_entropia(probabilidades):
     return sum(p * math.log2(1/p) for p in probabilidades.values()) if probabilidades else 0
@@ -121,21 +115,36 @@ def comprimir(texto, max_context):
     
     frequencias = defaultdict(float)
     entropia_total = 0
+    comprimento_total = 0  # Novo: acumular comprimentos
+    
+    huffman = Huffman()
+    
     for i in range(len(texto)):
         contexto = texto[max(0, i - max_context):i]
         probabilidades = ppm.prever(contexto)
+        
         if probabilidades:
+            # Atualiza frequências para construção do Huffman
             for char, prob in probabilidades.items():
                 frequencias[char] += prob
+            
+            # Calcula entropia para o contexto atual
             entropia_total += calcular_entropia(probabilidades)
+            
+            # Reconstroi Huffman para o contexto atual (opcional, depende da implementação)
+            huffman.construir_heap(probabilidades)
+            huffman.construir_codigos()
+            
+            # Adiciona o comprimento do código do símbolo atual
+            simbolo = texto[i]
+            comprimento_total += len(huffman.codes.get(simbolo, ""))
     
-    huffman = Huffman()
-    huffman.construir_heap(frequencias)
-    huffman.construir_codigos()
-    
-    codificado = huffman.codificar(texto)
+    # Calcula médias
     entropia_media = entropia_total / len(texto) if texto else 0
-    return codificado, huffman.codes, entropia_media
+    comprimento_medio = comprimento_total / len(texto) if texto else 0
+    
+    texto_comprimido = huffman.codificar(texto)
+    return texto_comprimido, huffman.codes, entropia_media, comprimento_medio
 
 def descomprimir(codigo, codigos):
     huffman = Huffman()
@@ -149,33 +158,24 @@ def avaliar_compressao(caminho_arquivo):
     
     for k in range(6):
         inicio_comp = time.time()
-        texto_comprimido, codigos, entropia = comprimir(texto, k)
+        texto_comprimido, codigos, entropia, comprimento_medio = comprimir(texto, k)  # Modificado
         fim_comp = time.time()
         
         inicio_desc = time.time()
         texto_descomprimido = descomprimir(texto_comprimido, codigos)
         fim_desc = time.time()
         
-        comprimento_medio = len(texto_comprimido) / len(texto) if len(texto) > 0 else 0
         tempo_compressao = fim_comp - inicio_comp
         tempo_descompressao = fim_desc - inicio_desc
         
         resultados.append((k, comprimento_medio, entropia, tempo_compressao, tempo_descompressao))
     
+  
     print("| K | Comprimento Médio | Entropia | Tempo Compressão (s) | Tempo Descompressão (s) |")
     print("|---|-------------------|----------|----------------------|-------------------------|")
-    
-    with open("texto_tratado.txt", "w", encoding="utf-8") as f:
-        f.write(texto)
-    with open("texto_comprimido.txt", "w", encoding="utf-8") as f:
-        f.write(texto_comprimido)
-    with open("texto_descomprimido.txt", "w", encoding="utf-8") as f:
-        f.write(texto_descomprimido)
     
     for r in resultados:
         print(f"| {r[0]} | {r[1]:.5f} | {r[2]:.5f} | {r[3]:.5f} | {r[4]:.5f} |")
 
-
-# Executar a análise
-documento = "bras_cubas.txt"  # Substitua pelo nome real do arquivo
+documento = "bras_cubas.txt"
 avaliar_compressao(documento)

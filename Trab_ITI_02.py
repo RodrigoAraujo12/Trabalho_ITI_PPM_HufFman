@@ -152,14 +152,31 @@ def descomprimir(codigo, codigos):
     huffman.reverse_mapping = {v: k for k, v in codigos.items()}
     return huffman.decodificar(codigo)
 
+def salvar_bits_em_arquivo(bits, nome_arquivo):
+    bytes_array = bytearray()
+    
+    for i in range(0, len(bits), 8):
+        byte_str = bits[i:i+8]
+        byte_str = byte_str.ljust(8, '0') 
+        byte = int(byte_str, 2)
+        bytes_array.append(byte)
+    
+    with open(f"{nome_arquivo}.bin", 'wb') as f_bin:
+        f_bin.write(bytes_array)
+    
+    with open(f"{nome_arquivo}.txt", 'w', encoding='utf-8') as f_txt:
+        f_txt.write(bits)
+
 def avaliar_compressao(caminho_arquivo):
     texto = limpar_texto(caminho_arquivo)
     resultados = []
     
     for k in range(6):
         inicio_comp = time.time()
-        texto_comprimido, codigos, entropia, comprimento_medio = comprimir(texto, k)  # Modificado
+        texto_comprimido, codigos, entropia, comprimento_medio = comprimir(texto, k) # Modificado
         fim_comp = time.time()
+        
+        salvar_bits_em_arquivo(texto_comprimido, f"comprimido_k{k}")  # salva em arquivo binário e texto
         
         inicio_desc = time.time()
         texto_descomprimido = descomprimir(texto_comprimido, codigos)
@@ -170,7 +187,6 @@ def avaliar_compressao(caminho_arquivo):
         
         resultados.append((k, comprimento_medio, entropia, tempo_compressao, tempo_descompressao))
     
-  
     print("| K | Comprimento Médio | Entropia | Tempo Compressão (s) | Tempo Descompressão (s) |")
     print("|---|-------------------|----------|----------------------|-------------------------|")
     
